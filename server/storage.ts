@@ -57,6 +57,27 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  // Sample medicine data for testing
+  private sampleMedicines = [
+    { id: "1", name: "Paracetamol", category: "Pain Relief", dosage: "500mg", manufacturer: "Generic Pharma", description: "Common pain reliever and fever reducer" },
+    { id: "2", name: "Ibuprofen", category: "Pain Relief", dosage: "400mg", manufacturer: "Advil Labs", description: "Anti-inflammatory pain relief medication" },
+    { id: "3", name: "Aspirin", category: "Pain Relief", dosage: "325mg", manufacturer: "Bayer", description: "Blood thinner and pain reliever" },
+    { id: "4", name: "Amoxicillin", category: "Antibiotic", dosage: "250mg", manufacturer: "Antibio Corp", description: "Broad-spectrum antibiotic" },
+    { id: "5", name: "Omeprazole", category: "Gastric", dosage: "20mg", manufacturer: "Stomach Care", description: "Proton pump inhibitor for acid reflux" },
+    { id: "6", name: "Metformin", category: "Diabetes", dosage: "500mg", manufacturer: "Diabetic Solutions", description: "Type 2 diabetes medication" },
+    { id: "7", name: "Lisinopril", category: "Blood Pressure", dosage: "10mg", manufacturer: "CardioMed", description: "ACE inhibitor for high blood pressure" },
+    { id: "8", name: "Atorvastatin", category: "Cholesterol", dosage: "20mg", manufacturer: "LipidCare", description: "Statin for cholesterol management" },
+    { id: "9", name: "Levothyroxine", category: "Thyroid", dosage: "50mcg", manufacturer: "ThyroMed", description: "Thyroid hormone replacement" },
+    { id: "10", name: "Amlodipine", category: "Blood Pressure", dosage: "5mg", manufacturer: "CardioMed", description: "Calcium channel blocker" }
+  ];
+
+  private samplePharmacies = [
+    { id: "1", name: "HealthPlus Pharmacy", address: "123 Main St", phone: "+1-555-0101", hours: "8 AM - 10 PM", coordinates: { lat: 40.7128, lng: -74.0060 } },
+    { id: "2", name: "MediCare Central", address: "456 Oak Ave", phone: "+1-555-0102", hours: "24/7", coordinates: { lat: 40.7589, lng: -73.9851 } },
+    { id: "3", name: "Quick Relief Pharmacy", address: "789 Pine Rd", phone: "+1-555-0103", hours: "7 AM - 11 PM", coordinates: { lat: 40.7505, lng: -73.9934 } },
+    { id: "4", name: "Family Drug Store", address: "321 Elm St", phone: "+1-555-0104", hours: "9 AM - 9 PM", coordinates: { lat: 40.7282, lng: -74.0776 } },
+    { id: "5", name: "Express Meds", address: "654 Cedar Ave", phone: "+1-555-0105", hours: "6 AM - Midnight", coordinates: { lat: 40.7614, lng: -73.9776 } }
+  ];
   // User operations (required for Replit Auth)
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
@@ -80,13 +101,25 @@ export class DatabaseStorage implements IStorage {
 
   // Medicine operations
   async searchMedicines(query: string): Promise<Medicine[]> {
-    return await db
-      .select()
-      .from(medicines)
-      .where(
-        ilike(medicines.name, `%${query}%`)
-      )
-      .limit(10);
+    // Use sample data for testing until database is populated
+    const searchTerm = query.toLowerCase();
+    const results = this.sampleMedicines.filter(medicine =>
+      medicine.name.toLowerCase().includes(searchTerm) ||
+      medicine.category.toLowerCase().includes(searchTerm) ||
+      medicine.manufacturer.toLowerCase().includes(searchTerm) ||
+      medicine.description.toLowerCase().includes(searchTerm)
+    );
+    
+    return results.slice(0, 10).map(med => ({
+      id: med.id,
+      name: med.name,
+      category: med.category,
+      dosage: med.dosage,
+      manufacturer: med.manufacturer,
+      description: med.description,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }));
   }
 
   async getMedicine(id: string): Promise<Medicine | undefined> {
@@ -101,22 +134,28 @@ export class DatabaseStorage implements IStorage {
 
   // Pharmacy operations
   async searchPharmacies(query: string, lat?: number, lng?: number): Promise<Pharmacy[]> {
-    let queryBuilder = db.select().from(pharmacies);
+    // Use sample data for testing
+    let results = this.samplePharmacies;
     
     if (query) {
-      queryBuilder = queryBuilder.where(ilike(pharmacies.name, `%${query}%`));
+      const searchTerm = query.toLowerCase();
+      results = results.filter(pharmacy =>
+        pharmacy.name.toLowerCase().includes(searchTerm) ||
+        pharmacy.address.toLowerCase().includes(searchTerm)
+      );
     }
 
-    // If location is provided, order by distance (simplified)
-    if (lat && lng) {
-      return await queryBuilder
-        .orderBy(
-          sql`(${pharmacies.latitude} - ${lat})^2 + (${pharmacies.longitude} - ${lng})^2`
-        )
-        .limit(20);
-    }
-
-    return await queryBuilder.limit(20);
+    return results.slice(0, 20).map(pharmacy => ({
+      id: pharmacy.id,
+      name: pharmacy.name,
+      address: pharmacy.address,
+      phone: pharmacy.phone,
+      hours: pharmacy.hours,
+      latitude: pharmacy.coordinates.lat,
+      longitude: pharmacy.coordinates.lng,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }));
   }
 
   async getPharmacy(id: string): Promise<Pharmacy | undefined> {

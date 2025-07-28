@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { ArrowLeft, Edit, User, CreditCard, Bell, Shield, Pill, LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import StatusBar from "@/components/status-bar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -30,8 +29,6 @@ export default function Profile() {
 
   return (
     <div className="min-h-screen overflow-x-hidden">
-      <StatusBar />
-      
       <div className="px-6 py-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">

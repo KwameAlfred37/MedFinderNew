@@ -43,8 +43,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen overflow-x-hidden">
-      <StatusBar />
-      
       <div className="flex flex-col items-center px-6 py-4">
         {/* Header with Profile or Login */}
         <div className="w-full max-w-md flex justify-between items-center mb-6">
@@ -103,15 +101,10 @@ export default function Home() {
           </div>
         </div>
 
-        {/* App Logo and Title */}
-        <div className="mb-8 text-center">
-          <div className="relative inline-block">
-            <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-blue-600 rounded-2xl flex items-center justify-center mb-4 mx-auto shadow-lg medicine-icon">
-              <PillBottle className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-4xl font-bold text-white mb-2">MedFinder</h1>
-            <p className="text-gray-300 text-lg">Find Your Medicine Fast</p>
-          </div>
+        {/* App Branding */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-white mb-2">MedFinder</h1>
+          <p className="text-gray-300 text-lg">Find Your Medicines Instantly</p>
         </div>
 
         {/* Search Bar */}

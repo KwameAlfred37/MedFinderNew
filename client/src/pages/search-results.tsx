@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { ArrowLeft, Filter } from "lucide-react";
-import StatusBar from "@/components/status-bar";
 import PharmacyCard from "@/components/pharmacy-card";
 import { Button } from "@/components/ui/button";
 
@@ -21,7 +20,6 @@ export default function SearchResults() {
   if (isLoading) {
     return (
       <div className="min-h-screen overflow-x-hidden">
-        <StatusBar />
         <div className="flex items-center justify-center h-96">
           <div className="loading-spinner w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full"></div>
         </div>
@@ -34,8 +32,6 @@ export default function SearchResults() {
 
   return (
     <div className="min-h-screen overflow-x-hidden">
-      <StatusBar />
-      
       <div className="px-6 py-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
