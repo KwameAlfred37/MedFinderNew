@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
-import { insertMedicineSchema, insertPharmacySchema, insertChatMessageSchema } from "@shared/schema";
+import { insertMedicineSchema, insertPharmacySchema, insertChatMessageSchema, insertUserSearchSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -149,11 +149,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Chat routes
-  app.get('/api/chat/messages', isAuthenticated, async (req: any, res) => {
+  // Chat routes - support both authenticated and anonymous users
+  app.get('/api/chat/messages', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const messages = await storage.getChatMessages(userId);
+      const userId = req.user?.claims?.sub;
+      const sessionId = req.sessionID;
+      
+      const messages = await storage.getChatMessages(userId, userId ? undefined : sessionId);
       res.json(messages);
     } catch (error) {
       console.error("Error fetching chat messages:", error);
@@ -161,15 +163,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/chat/messages', isAuthenticated, async (req: any, res) => {
+  app.post('/api/chat/messages', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user?.claims?.sub;
+      const sessionId = req.sessionID;
+      const ipAddress = req.ip;
+      
+      // For anonymous users, check chat limit
+      if (!userId) {
+        const usage = await storage.getAnonymousChatUsage(sessionId, ipAddress);
+        if (usage && usage.chatCount >= 4) {
+          return res.status(429).json({ 
+            message: "Chat limit reached. Please sign in to continue chatting.",
+            remainingChats: 0,
+            isLimitReached: true
+          });
+        }
+      }
+      
       const validatedData = insertChatMessageSchema.parse({
         ...req.body,
-        userId,
+        userId: userId || null,
+        sessionId: userId ? null : sessionId,
       });
       
       const message = await storage.createChatMessage(validatedData);
+      
+      // Update anonymous chat usage if not authenticated
+      if (!userId && !req.body.isFromBot) {
+        await storage.updateAnonymousChatUsage(sessionId, ipAddress);
+      }
+      
       res.status(201).json(message);
     } catch (error) {
       console.error("Error creating chat message:", error);
@@ -177,15 +201,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Search history routes
-  app.get('/api/search/history', isAuthenticated, async (req: any, res) => {
+  // Get anonymous chat usage
+  app.get('/api/chat/usage', async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const searches = await storage.getUserSearches(userId);
+      const userId = req.user?.claims?.sub;
+      const sessionId = req.sessionID;
+      
+      if (userId) {
+        return res.json({ unlimited: true, remainingChats: -1 });
+      }
+      
+      const usage = await storage.getAnonymousChatUsage(sessionId);
+      const remainingChats = Math.max(0, 4 - (usage?.chatCount || 0));
+      
+      res.json({
+        unlimited: false,
+        remainingChats,
+        isLimitReached: remainingChats === 0,
+        weekStart: usage?.weekStart,
+      });
+    } catch (error) {
+      console.error("Error fetching chat usage:", error);
+      res.status(500).json({ message: "Failed to fetch chat usage" });
+    }
+  });
+
+  // Search history routes - support both authenticated and anonymous users
+  app.get('/api/search/history', async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const sessionId = req.sessionID;
+      
+      const searches = await storage.getUserSearches(userId, userId ? undefined : sessionId);
       res.json(searches);
     } catch (error) {
       console.error("Error fetching search history:", error);
       res.status(500).json({ message: "Failed to fetch search history" });
+    }
+  });
+
+  // Save search to history
+  app.post('/api/search/history', async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      const sessionId = req.sessionID;
+      
+      const validatedData = insertUserSearchSchema.parse({
+        ...req.body,
+        userId: userId || null,
+        sessionId: userId ? null : sessionId,
+      });
+      
+      const search = await storage.createUserSearch(validatedData);
+      res.status(201).json(search);
+    } catch (error) {
+      console.error("Error saving search:", error);
+      res.status(500).json({ message: "Failed to save search" });
     }
   });
 

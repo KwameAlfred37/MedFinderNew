@@ -19,13 +19,12 @@ import {
 } from "lucide-react";
 
 export default function Home() {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
   const { data: searchHistory } = useQuery({
     queryKey: ["/api/search/history"],
-    enabled: !!user,
   });
 
   const handleSearch = (query: string) => {
@@ -47,49 +46,59 @@ export default function Home() {
       <StatusBar />
       
       <div className="flex flex-col items-center px-6 py-4">
-        {/* Header with Profile */}
+        {/* Header with Profile or Login */}
         <div className="w-full max-w-md flex justify-between items-center mb-6">
           <div></div>
           <div className="relative">
-            <Button
-              onClick={handleProfileClick}
-              variant="ghost"
-              size="icon"
-              className="w-12 h-12 bg-white/20 hover:bg-white/30 backdrop-blur-sm border border-white/30 rounded-full status-indicator online"
-            >
-              <User className="w-6 h-6 text-white" />
-            </Button>
+            {isAuthenticated ? (
+              <>
+                <Button
+                  onClick={handleProfileClick}
+                  variant="ghost"
+                  size="icon"
+                  className="w-12 h-12 bg-white/20 hover:bg-white/30 backdrop-blur-sm border border-white/30 rounded-full status-indicator online"
+                >
+                  <User className="w-6 h-6 text-white" />
+                </Button>
 
-            {/* Profile Dropdown */}
-            {showProfileDropdown && (
-              <div className="absolute right-0 top-14 w-48 bg-white/95 backdrop-blur-sm border border-white/30 rounded-xl shadow-lg z-30">
-                <div className="py-2">
-                  <button 
-                    onClick={() => setLocation("/profile")}
-                    className="w-full px-4 py-3 text-left text-gray-800 hover:bg-gray-100 transition-colors flex items-center space-x-3 border-b border-gray-200"
-                  >
-                    <User className="w-5 h-5" />
-                    <span className="font-medium">Profile</span>
-                  </button>
-                  <button 
-                    onClick={() => setLocation("/chat")}
-                    className="w-full px-4 py-3 text-left text-gray-800 hover:bg-gray-100 transition-colors flex items-center justify-between"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <MessageCircle className="w-5 h-5" />
-                      <span className="font-medium">Chat</span>
+                {/* Profile Dropdown */}
+                {showProfileDropdown && (
+                  <div className="absolute right-0 top-14 w-48 bg-white/95 backdrop-blur-sm border border-white/30 rounded-xl shadow-lg z-30">
+                    <div className="py-2">
+                      <button 
+                        onClick={() => setLocation("/profile")}
+                        className="w-full px-4 py-3 text-left text-gray-800 hover:bg-gray-100 transition-colors flex items-center space-x-3 border-b border-gray-200"
+                      >
+                        <User className="w-5 h-5" />
+                        <span className="font-medium">Profile</span>
+                      </button>
+                      <button 
+                        onClick={() => setLocation("/chat")}
+                        className="w-full px-4 py-3 text-left text-gray-800 hover:bg-gray-100 transition-colors flex items-center justify-between"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <MessageCircle className="w-5 h-5" />
+                          <span className="font-medium">Chat</span>
+                        </div>
+                      </button>
+                      <button 
+                        onClick={handleLogout}
+                        className="w-full px-4 py-3 text-left text-gray-800 hover:bg-gray-100 transition-colors flex items-center space-x-3"
+                      >
+                        <Settings className="w-5 h-5" />
+                        <span className="font-medium">Logout</span>
+                      </button>
                     </div>
-                    <span className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-xs text-white">3</span>
-                  </button>
-                  <button 
-                    onClick={handleLogout}
-                    className="w-full px-4 py-3 text-left text-gray-800 hover:bg-gray-100 transition-colors flex items-center space-x-3"
-                  >
-                    <Settings className="w-5 h-5" />
-                    <span className="font-medium">Logout</span>
-                  </button>
-                </div>
-              </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <Button
+                onClick={() => window.location.href = "/api/login"}
+                className="button-3d text-white px-4 py-2 rounded-xl font-medium text-sm"
+              >
+                Sign In
+              </Button>
             )}
           </div>
         </div>

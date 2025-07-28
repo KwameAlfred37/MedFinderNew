@@ -5,6 +5,7 @@ import {
   medicineInventory,
   chatMessages,
   userSearches,
+  anonymousChats,
   type User,
   type UpsertUser,
   type Medicine,
@@ -17,6 +18,8 @@ import {
   type InsertChatMessage,
   type UserSearch,
   type InsertUserSearch,
+  type AnonymousChat,
+  type InsertAnonymousChat,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, ilike, and, sql, desc } from "drizzle-orm";
@@ -41,11 +44,15 @@ export interface IStorage {
   updateInventory(inventory: InsertMedicineInventory): Promise<MedicineInventory>;
   
   // Chat operations
-  getChatMessages(userId: string, limit?: number): Promise<ChatMessage[]>;
+  getChatMessages(userId?: string, sessionId?: string, limit?: number): Promise<ChatMessage[]>;
   createChatMessage(message: InsertChatMessage): Promise<ChatMessage>;
   
+  // Anonymous chat tracking
+  getAnonymousChatUsage(sessionId: string, ipAddress?: string): Promise<AnonymousChat | undefined>;
+  updateAnonymousChatUsage(sessionId: string, ipAddress?: string): Promise<AnonymousChat>;
+  
   // Search history
-  getUserSearches(userId: string, limit?: number): Promise<UserSearch[]>;
+  getUserSearches(userId?: string, sessionId?: string, limit?: number): Promise<UserSearch[]>;
   createUserSearch(search: InsertUserSearch): Promise<UserSearch>;
 }
 
@@ -170,11 +177,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Chat operations
-  async getChatMessages(userId: string, limit: number = 50): Promise<ChatMessage[]> {
-    return await db
-      .select()
-      .from(chatMessages)
-      .where(eq(chatMessages.userId, userId))
+  async getChatMessages(userId?: string, sessionId?: string, limit: number = 50): Promise<ChatMessage[]> {
+    let queryBuilder = db.select().from(chatMessages);
+    
+    if (userId) {
+      queryBuilder = queryBuilder.where(eq(chatMessages.userId, userId));
+    } else if (sessionId) {
+      queryBuilder = queryBuilder.where(eq(chatMessages.sessionId, sessionId));
+    } else {
+      return []; // Must provide either userId or sessionId
+    }
+    
+    return await queryBuilder
       .orderBy(desc(chatMessages.createdAt))
       .limit(limit);
   }
@@ -184,12 +198,67 @@ export class DatabaseStorage implements IStorage {
     return newMessage;
   }
 
-  // Search history
-  async getUserSearches(userId: string, limit: number = 20): Promise<UserSearch[]> {
-    return await db
+  // Anonymous chat tracking
+  async getAnonymousChatUsage(sessionId: string, ipAddress?: string): Promise<AnonymousChat | undefined> {
+    const [usage] = await db
       .select()
-      .from(userSearches)
-      .where(eq(userSearches.userId, userId))
+      .from(anonymousChats)
+      .where(eq(anonymousChats.sessionId, sessionId));
+    return usage;
+  }
+
+  async updateAnonymousChatUsage(sessionId: string, ipAddress?: string): Promise<AnonymousChat> {
+    const now = new Date();
+    const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+    
+    const existing = await this.getAnonymousChatUsage(sessionId);
+    
+    if (existing) {
+      // Check if we need to reset the week counter
+      const existingWeekStart = new Date(existing.weekStart);
+      const shouldReset = weekStart.getTime() > existingWeekStart.getTime();
+      
+      const [updated] = await db
+        .update(anonymousChats)
+        .set({
+          chatCount: shouldReset ? 1 : existing.chatCount + 1,
+          weekStart: shouldReset ? weekStart : existing.weekStart,
+          lastUsed: now,
+          ipAddress: ipAddress || existing.ipAddress,
+        })
+        .where(eq(anonymousChats.sessionId, sessionId))
+        .returning();
+      
+      return updated;
+    } else {
+      const [newUsage] = await db
+        .insert(anonymousChats)
+        .values({
+          sessionId,
+          ipAddress,
+          chatCount: 1,
+          weekStart,
+          lastUsed: now,
+        })
+        .returning();
+      
+      return newUsage;
+    }
+  }
+
+  // Search history
+  async getUserSearches(userId?: string, sessionId?: string, limit: number = 20): Promise<UserSearch[]> {
+    let queryBuilder = db.select().from(userSearches);
+    
+    if (userId) {
+      queryBuilder = queryBuilder.where(eq(userSearches.userId, userId));
+    } else if (sessionId) {
+      queryBuilder = queryBuilder.where(eq(userSearches.sessionId, sessionId));
+    } else {
+      return []; // Must provide either userId or sessionId
+    }
+    
+    return await queryBuilder
       .orderBy(desc(userSearches.createdAt))
       .limit(limit);
   }

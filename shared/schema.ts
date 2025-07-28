@@ -74,7 +74,8 @@ export const medicineInventory = pgTable("medicine_inventory", {
 
 export const chatMessages = pgTable("chat_messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id),
+  userId: varchar("user_id").references(() => users.id),
+  sessionId: varchar("session_id"), // For anonymous users
   message: text("message").notNull(),
   isFromBot: boolean("is_from_bot").default(false),
   createdAt: timestamp("created_at").defaultNow(),
@@ -82,10 +83,21 @@ export const chatMessages = pgTable("chat_messages", {
 
 export const userSearches = pgTable("user_searches", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().references(() => users.id),
+  userId: varchar("user_id").references(() => users.id),
+  sessionId: varchar("session_id"), // For anonymous users
   query: varchar("query").notNull(),
   results: jsonb("results"),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const anonymousChats = pgTable("anonymous_chats", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull(),
+  ipAddress: varchar("ip_address"),
+  chatCount: integer("chat_count").default(0),
+  weekStart: timestamp("week_start").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  lastUsed: timestamp("last_used").defaultNow(),
 });
 
 // Relations
@@ -153,6 +165,12 @@ export const insertUserSearchSchema = createInsertSchema(userSearches).omit({
   createdAt: true,
 });
 
+export const insertAnonymousChatSchema = createInsertSchema(anonymousChats).omit({
+  id: true,
+  createdAt: true,
+  lastUsed: true,
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -166,3 +184,5 @@ export type ChatMessage = typeof chatMessages.$inferSelect;
 export type InsertChatMessage = z.infer<typeof insertChatMessageSchema>;
 export type UserSearch = typeof userSearches.$inferSelect;
 export type InsertUserSearch = z.infer<typeof insertUserSearchSchema>;
+export type AnonymousChat = typeof anonymousChats.$inferSelect;
+export type InsertAnonymousChat = z.infer<typeof insertAnonymousChatSchema>;

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/queryClient";
 
 export default function Chat() {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [, setLocation] = useLocation();
   const [message, setMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -19,7 +19,11 @@ export default function Chat() {
 
   const { data: messages, isLoading } = useQuery({
     queryKey: ["/api/chat/messages"],
-    enabled: !!user,
+  });
+
+  const { data: chatUsage } = useQuery({
+    queryKey: ["/api/chat/usage"],
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   const { sendMessage } = useChat();
@@ -33,30 +37,67 @@ export default function Chat() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/chat/messages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/chat/usage"] });
       setMessage("");
       
-      // Simulate bot response after a delay
-      setTimeout(() => {
-        const botResponses = [
-          "I can help you find that medication. Let me search for nearby pharmacies.",
-          "Would you like me to check the availability at different locations?",
-          "I found several options for you. Which pharmacy would you prefer?",
-          "Is there anything specific you'd like to know about this medication?",
-        ];
-        const randomResponse = botResponses[Math.floor(Math.random() * botResponses.length)];
-        
+      // Auto-send sign-up reminder for anonymous users when they reach 3 chats
+      if (!isAuthenticated && chatUsage?.remainingChats === 1) {
+        setTimeout(() => {
+          apiRequest("POST", "/api/chat/messages", {
+            message: "👋 You have 1 chat remaining this week! Sign in to unlock unlimited chatting and access to your full medical history.",
+            isFromBot: true,
+          }).then(() => {
+            queryClient.invalidateQueries({ queryKey: ["/api/chat/messages"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/chat/usage"] });
+          });
+        }, 1000);
+      } else {
+        // Simulate bot response after a delay
+        setTimeout(() => {
+          const botResponses = [
+            "I can help you find that medication. Let me search for nearby pharmacies.",
+            "Would you like me to check the availability at different locations?",
+            "I found several options for you. Which pharmacy would you prefer?",
+            "Is there anything specific you'd like to know about this medication?",
+          ];
+          const randomResponse = botResponses[Math.floor(Math.random() * botResponses.length)];
+          
+          apiRequest("POST", "/api/chat/messages", {
+            message: randomResponse,
+            isFromBot: true,
+          }).then(() => {
+            queryClient.invalidateQueries({ queryKey: ["/api/chat/messages"] });
+          });
+        }, 1500);
+      }
+    },
+    onError: (error: any) => {
+      if (error.message?.includes("Chat limit reached")) {
+        // Show limit reached message
         apiRequest("POST", "/api/chat/messages", {
-          message: randomResponse,
+          message: "🚫 You've reached your weekly chat limit (4 chats). Sign in to continue chatting with unlimited access!",
           isFromBot: true,
         }).then(() => {
           queryClient.invalidateQueries({ queryKey: ["/api/chat/messages"] });
+          queryClient.invalidateQueries({ queryKey: ["/api/chat/usage"] });
         });
-      }, 1500);
-    },
+      }
+    }
   });
 
   const handleSendMessage = () => {
     if (message.trim()) {
+      // Check if anonymous user has reached chat limit
+      if (!isAuthenticated && chatUsage?.isLimitReached) {
+        apiRequest("POST", "/api/chat/messages", {
+          message: "🚫 You've reached your weekly chat limit (4 chats). Sign in to continue chatting with unlimited access!",
+          isFromBot: true,
+        }).then(() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/chat/messages"] });
+        });
+        return;
+      }
+      
       sendMessageMutation.mutate(message);
       sendMessage(message);
     }
@@ -110,17 +151,23 @@ export default function Chat() {
               </div>
               <div>
                 <h3 className="text-white font-semibold">MedBot Assistant</h3>
-                <p className="text-gray-300 text-sm">Always here to help</p>
+                <p className="text-gray-300 text-sm">
+                  {isAuthenticated 
+                    ? "Always here to help" 
+                    : `${chatUsage?.remainingChats || 4} chats remaining this week`
+                  }
+                </p>
               </div>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="w-10 h-10 bg-white/20 backdrop-blur-sm border border-white/30 rounded-full"
-          >
-            <MoreVertical className="w-5 h-5 text-white" />
-          </Button>
+          {!isAuthenticated && (
+            <Button
+              onClick={() => window.location.href = "/api/login"}
+              className="button-3d text-white px-3 py-1 text-xs rounded-lg"
+            >
+              Sign In
+            </Button>
+          )}
         </div>
       </div>
 
@@ -180,14 +227,17 @@ export default function Chat() {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Type a message..."
+              placeholder={!isAuthenticated && chatUsage?.isLimitReached 
+                ? "Chat limit reached - Sign in to continue" 
+                : "Type a message..."
+              }
               className="w-full bg-white/20 backdrop-blur-sm border border-white/30 rounded-2xl px-4 py-3 text-white placeholder-gray-300 focus:outline-none focus:border-purple-500"
-              disabled={sendMessageMutation.isPending}
+              disabled={sendMessageMutation.isPending || (!isAuthenticated && chatUsage?.isLimitReached)}
             />
           </div>
           <Button
             onClick={handleSendMessage}
-            disabled={!message.trim() || sendMessageMutation.isPending}
+            disabled={!message.trim() || sendMessageMutation.isPending || (!isAuthenticated && chatUsage?.isLimitReached)}
             className="button-3d w-12 h-12 rounded-full p-0"
           >
             <Send className="w-5 h-5 text-white" />
